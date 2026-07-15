@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的私人健康档案</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .suggestion-box { position: absolute; z-index: 50; width: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; max-height: 10rem; overflow-y: auto; shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .suggestion-item { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.875rem; }
+        .suggestion-item:hover { background-color: #f1f5f9; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
+
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-blue-600 flex items-center gap-2">🩺 私人健康档案</h1>
+            <span class="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-medium">🔒 本地安全存储 · 关怀长辈版</span>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- 左侧：表单录入 -->
+        <section class="lg:col-span-5 bg-white rounded-2xl shadow-sm p-6 border border-slate-100 h-fit lg:sticky lg:top-20">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-lg font-bold text-slate-900" id="formTitle">📝 新增就诊记录</h2>
+                <button type="button" id="cancelEditBtn" onclick="resetToCreateMode()" class="text-xs text-slate-500 hover:text-slate-700 hidden">❌ 取消修改</button>
+            </div>
+            <form id="recordForm" class="space-y-4">
+                <input type="hidden" id="editingRecordId" value="">
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">就诊成员</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="border rounded-lg p-2.5 text-center block cursor-pointer bg-blue-50 border-blue-500 text-blue-700 font-medium" id="lbl-member-self">
+                            <input type="radio" name="member" value="自己" checked class="hidden" onclick="switchFormMember('self')"> 自己
+                        </label>
+                        <label class="border rounded-lg p-2.5 text-center block cursor-pointer bg-white border-slate-200" id="lbl-member-child">
+                            <input type="radio" name="member" value="小孩" class="hidden" onclick="switchFormMember('child')"> 小孩
+                        </label>
+                        <label class="border rounded-lg p-2.5 text-center block cursor-pointer bg-white border-slate-200" id="lbl-member-family">
+                            <input type="radio" name="member" value="其他家人" class="hidden" onclick="switchFormMember('family')"> 其他家人
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">就诊日期</label>
+                    <input type="date" id="visit_date" required class="w-full rounded-lg border-slate-200 border p-2.5 outline-none focus:border-blue-500">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">就诊医院</label>
+                        <input type="text" id="hospital" placeholder="省人民医院" required autocomplete="off" oninput="showSuggestions('hospital')" class="w-full rounded-lg border-slate-200 border p-2.5 outline-none focus:border-blue-500">
+                        <div id="hospital-box" class="suggestion-box hidden"></div>
+                    </div>
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">科室</label>
+                        <input type="text" id="department" placeholder="呼吸内科" required autocomplete="off" oninput="showSuggestions('department')" class="w-full rounded-lg border-slate-200 border p-2.5 outline-none focus:border-blue-500">
+                        <div id="department-box" class="suggestion-box hidden"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">身体症状</label>
+                    <input type="text" id="symptoms" placeholder="主要不舒服的表现" required class="w-full rounded-lg border-slate-200 border p-2.5 outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">医生诊断</label>
+                    <input type="text" id="diagnosis" placeholder="诊断书上的疾病名称" required class="w-full rounded-lg border-slate-200 border p-2.5 outline-none focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1 flex justify-between items-center">
+                        <span>💊 处方配药 (可选)</span>
+                        <button type="button" onclick="addMedicineInput()" class="text-xs text-blue-600 hover:text-blue-800 font-bold">+ 添加药品</button>
+                    </label>
+                    <div id="medicineContainer" class="space-y-2"></div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">病情小结报告</label>
+                    <textarea id="summary" rows="3" placeholder="写下这次生病的恢复情况..." class="w-full rounded-lg border-slate-200 border p-2.5 outline-none focus:border-blue-500"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" id="fileLabel">追加上传报告单（支持照片/PDF）</label>
+                    <input type="file" id="images" multiple accept="image/*,.pdf" onchange="handleFileSelect(event)" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                    <div id="selectedFilesList" class="mt-2 space-y-1 text-xs text-slate-600"></div>
+                </div>
+                
+                <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition shadow-sm">保存到本地存储</button>
+            </form>
+        </section>
+
+        <!-- 右侧：时间轴列表 -->
+        <section class="lg:col-span-7 space-y-4">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+                <div class="flex gap-2">
+                    <input type="text" id="searchBar" oninput="filterRecords()" placeholder="🔍 输入医院/科室/症状/诊断/药名进行动态搜索..." class="w-full text-sm rounded-lg border-slate-200 border px-3 py-2 outline-none focus:border-blue-500">
+                </div>
+                <div class="flex gap-2 text-xs">
+                    <button onclick="filterMember('全部')" id="btn-filter-all" class="px-3 py-1.5 rounded-full bg-blue-600 text-white font-medium">👪 全家总览</button>
+                    <button onclick="filterMember('自己')" id="btn-filter-self" class="px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">自己</button>
+                    <button onclick="filterMember('小孩')" id="btn-filter-child" class="px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">小孩</button>
+                    <button onclick="filterMember('其他家人')" id="btn-filter-family" class="px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">其他家人</button>
+                </div>
+            </div>
+
+            <div id="timeline" class="space-y-6 relative border-l-2 border-slate-200 ml-4 pl-6"></div>
+        </section>
+    </main>
+
+    <!-- 弹窗大图/PDF 预览 -->
+    <div id="imageViewer" onclick="closeImageViewer()" class="fixed inset-0 bg-black/90 z-[99] hidden flex items-center justify-center p-4 cursor-zoom-out">
+        <img id="viewerImg" src="" class="max-w-full max-h-full rounded shadow-2xl object-contain">
+    </div>
+
+    <div id="pdfViewer" class="fixed inset-0 bg-slate-900/80 z-[99] hidden flex flex-col p-4 md:p-8">
+        <div class="max-w-5xl w-full mx-auto bg-white rounded-t-xl p-3 flex justify-between items-center border-b shadow-lg">
+            <span class="text-sm font-bold text-slate-700 truncate" id="pdfViewerTitle">📄 报告单预览</span>
+            <button onclick="closePdfViewer()" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-3 py-1.5 rounded-lg text-xs transition">关闭预览 ✕</button>
+        </div>
+        <div class="max-w-5xl w-full mx-auto bg-slate-100 rounded-b-xl flex-1 overflow-hidden shadow-2xl relative">
+            <iframe id="pdfFrame" src="" class="w-full h-full border-0"></iframe>
+        </div>
+    </div>
+
+    <!-- 底部：长辈专属关怀区（数据导入导出） -->
+    <footer class="max-w-4xl mx-auto px-4 mt-12 pt-8 border-t border-slate-300">
+        <div class="bg-blue-900 text-white rounded-2xl p-6 shadow-xl space-y-6">
+            <div class="text-center">
+                <h3 class="text-xl font-bold flex items-center justify-center gap-2">👴 👵 长辈专属数据备份与恢复中心</h3>
+                <p class="text-xs text-blue-200 mt-1">换手机、清理手机空间前，请务必操作此区域防止数据丢失</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <!-- 导出模块 -->
+                <div class="bg-white/10 p-4 rounded-xl border border-white/20 flex flex-col justify-between">
+                    <div>
+                        <span class="text-base font-bold block mb-1">第一步：将资料保存到手机 👇</span>
+                        <p class="text-xs text-slate-200 leading-relaxed">点下方按钮后，手机会把全部病历、图片打包下载。如果弹出提示，请一律点击【允许下载】或【确定】。</p>
+                    </div>
+                    <button onclick="exportData()" class="mt-4 w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3 px-4 rounded-xl transition text-base shadow-md">📥 点击把档案保存到手机</button>
+                </div>
+                
+                <!-- 导入模块 -->
+                <div class="bg-white/10 p-4 rounded-xl border border-white/20 flex flex-col justify-between">
+                    <div>
+                        <span class="text-base font-bold block mb-1">第二步：从手机找回旧档案 👇</span>
+                        <p class="text-xs text-slate-200 leading-relaxed">
+                            点击下方按钮后，手机会弹出文件选择框。
+                            <span class="block mt-1.5 font-bold text-amber-300 bg-amber-950/40 p-1.5 rounded border border-amber-500/30">
+                                💡 找不到文件时：在顶部的搜索栏里输入 <span class="bg-white text-slate-950 px-1 py-0.5 rounded font-mono font-black">.json</span>，出来的就是备份文件，直接点它即可！
+                            </span>
+                        </p>
+                    </div>
+                    <label class="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition text-base text-center block cursor-pointer shadow-md animate-pulse">
+                        📤 点击从手机找回旧档案
+                        <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let db;
+        let tempFilesPool = [];
+        let allRecordsCache = []; 
+        let currentFilterMember = "全部"; 
+        let memoryKeywords = { hospital: new Set(), department: new Set(), medName: new Set() };
+        let existingFilesPool = []; 
+        let currentPdfBlobUrl = null; 
+
+        const request = indexedDB.open("HealthRecordsOfflineDB", 1);
+        request.onupgradeneeded = function(e) {
+            db = e.target.result;
+            if (!db.objectStoreNames.contains("records")) {
+                db.createObjectStore("records", { keyPath: "id", autoIncrement: true });
+            }
+        };
+        request.onsuccess = function(e) { db = e.target.result; loadRecords(); };
+
+        function switchFormMember(type) {
+            ['self', 'child', 'family'].forEach(t => {
+                document.getElementById(`lbl-member-${t}`).className = "border rounded-lg p-2.5 text-center block cursor-pointer bg-white border-slate-200";
+            });
+            document.getElementById(`lbl-member-${type}`).className = "border rounded-lg p-2.5 text-center block cursor-pointer bg-blue-50 border-blue-500 text-blue-700 font-medium";
+        }
+
+        function addMedicineInput(name = '', usage = '') {
+            const container = document.getElementById('medicineContainer');
+            const row = document.createElement('div');
+            row.className = "flex gap-2 items-center medicine-row relative";
+            row.innerHTML = `
+                <div class="w-1/2 relative">
+                    <input type="text" placeholder="药名" value="${name}" autocomplete="off" class="w-full rounded-md border-slate-200 border p-1.5 text-sm outline-none med-name-input">
+                    <div class="suggestion-box hidden"></div>
+                </div>
+                <input type="text" placeholder="用法" value="${usage}" class="w-1/2 rounded-md border-slate-200 border p-1.5 text-sm outline-none">
+                <button type="button" onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xs px-1">❌</button>
+            `;
+            container.appendChild(row);
+
+            const input = row.querySelector('.med-name-input');
+            const box = row.querySelector('.suggestion-box');
+            input.oninput = function() {
+                const val = input.value.trim();
+                box.innerHTML = '';
+                if(!val) { box.classList.add('hidden'); return; }
+                const list = Array.from(memoryKeywords.medName).filter(k => k.includes(val));
+                if(list.length === 0) { box.classList.add('hidden'); return; }
+                list.forEach(k => {
+                    const item = document.createElement('div');
+                    item.className = "suggestion-item";
+                    item.innerText = k;
+                    item.onclick = function() { input.value = k; box.classList.add('hidden'); };
+                    box.appendChild(item);
+                });
+                box.classList.remove('hidden');
+            };
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            for (let i = 0; i < files.length; i++) { tempFilesPool.push(files[i]); }
+            renderSelectedFilesList();
+            event.target.value = '';
+        }
+
+        function renderSelectedFilesList() {
+            const listDiv = document.getElementById('selectedFilesList');
+            listDiv.innerHTML = '';
+            if (existingFilesPool.length > 0) {
+                listDiv.innerHTML += '<p class="font-semibold text-emerald-700 mb-1">✅ 档案已有附件（保留中）：</p>';
+                existingFilesPool.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = "flex justify-between items-center bg-emerald-50 text-emerald-800 p-1 rounded mt-1";
+                    item.innerHTML = `<span class="truncate max-w-[80%]">先前上传: ${file.name}</span><button type="button" onclick="removeOldFile(${index})" class="text-red-500 font-bold px-1">✕</button>`;
+                    listDiv.appendChild(item);
+                });
+            }
+            if (tempFilesPool.length > 0) {
+                listDiv.innerHTML += '<p class="font-semibold text-slate-700 mb-1 mt-2">📎 本次新增的文件：</p>';
+                tempFilesPool.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = "flex justify-between items-center bg-slate-100 p-1 rounded mt-1";
+                    item.innerHTML = `<span class="truncate max-w-[80%]">${file.name}</span><button type="button" onclick="removeFromFilePool(${index})" class="text-red-500 font-bold px-1">✕</button>`;
+                    listDiv.appendChild(item);
+                });
+            }
+        }
+
+        function removeFromFilePool(index) { tempFilesPool.splice(index, 1); renderSelectedFilesList(); }
+        function removeOldFile(index) { existingFilesPool.splice(index, 1); renderSelectedFilesList(); }
+
+        function compressImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width; let height = img.height;
+                        const MAX_SIDE = 1200;
+                        if (width > MAX_SIDE || height > MAX_SIDE) {
+                            if (width > height) { height = Math.round((height * MAX_SIDE) / width); width = MAX_SIDE; } 
+                            else { width = Math.round((width * MAX_SIDE) / height); height = MAX_SIDE; }
+                        }
+                        canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve({ name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", data: canvas.toDataURL('image/jpeg', 0.7) });
+                    };
+                };
+            });
+        }
+
+        function fileToBase64Raw(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve({ name: file.name, data: reader.result });
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function openImageViewer(base64Data) {
+            document.getElementById('viewerImg').src = base64Data;
+            document.getElementById('imageViewer').classList.remove('hidden');
+        }
+        function closeImageViewer() { document.getElementById('imageViewer').classList.add('hidden'); }
+
+        function base64ToBlob(base64Str, mimeType) {
+            const byteCharacters = atob(base64Str.split(',')[1]);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
+        }
+
+        function openPdfViewer(base64Data, fileName) {
+            if (currentPdfBlobUrl) { URL.revokeObjectURL(currentPdfBlobUrl); } 
+            try {
+                const blob = base64ToBlob(base64Data, 'application/pdf');
+                currentPdfBlobUrl = URL.createObjectURL(blob); 
+                document.getElementById('pdfViewerTitle').innerText = `📄 报告单预览: ${fileName}`;
+                document.getElementById('pdfFrame').src = currentPdfBlobUrl;
+                document.getElementById('pdfViewer').classList.remove('hidden');
+                document.body.style.overflow = 'hidden'; 
+            } catch (e) {
+                alert("PDF 报告单预览读取失败。");
+            }
+        }
+
+        function closePdfViewer() {
+            document.getElementById('pdfViewer').classList.add('hidden');
+            document.getElementById('pdfFrame').src = "";
+            document.body.style.overflow = ''; 
+            if (currentPdfBlobUrl) { URL.revokeObjectURL(currentPdfBlobUrl); currentPdfBlobUrl = null; }
+        }
+
+        function startEditRecord(id) {
+            const record = allRecordsCache.find(r => r.id === id);
+            if (!record) return;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.getElementById('formTitle').innerText = "✏️ 修改/补充就诊记录";
+            document.getElementById('submitBtn').innerText = "确认修改并更新档案";
+            document.getElementById('submitBtn').className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-lg transition shadow-sm";
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+            document.getElementById('editingRecordId').value = id;
+            document.getElementById('fileLabel').innerText = "继续追加上传报告单（支持照片/PDF）";
+            document.getElementById('visit_date').value = record.visit_date;
+            document.getElementById('hospital').value = record.hospital || '';
+            document.getElementById('department').value = record.department || '';
+            document.getElementById('symptoms').value = record.symptoms || '';
+            document.getElementById('diagnosis').value = record.diagnosis || '';
+            document.getElementById('summary').value = record.summary || '';
+            const memberTypeMap = { "自己": "self", "小孩": "child", "其他家人": "family" };
+            switchFormMember(memberTypeMap[record.member] || "self");
+            document.querySelector(`input[name="member"][value="${record.member}"]`).checked = true;
+            document.getElementById('medicineContainer').innerHTML = '';
+            if (record.medicines) { record.medicines.forEach(m => addMedicineInput(m.name, m.usage)); }
+            existingFilesPool = record.files ? [...record.files] : [];
+            tempFilesPool = [];
+            renderSelectedFilesList();
+        }
+
+        function resetToCreateMode() {
+            document.getElementById('formTitle').innerText = "📝 新增就诊记录";
+            document.getElementById('submitBtn').innerText = "保存到本地存储";
+            document.getElementById('submitBtn').className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition shadow-sm";
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+            document.getElementById('editingRecordId').value = "";
+            document.getElementById('fileLabel').innerText = "上传报告单（支持照片或 PDF）";
+            document.getElementById('recordForm').reset();
+            document.getElementById('medicineContainer').innerHTML = '';
+            switchFormMember('self');
+            tempFilesPool = []; existingFilesPool = []; renderSelectedFilesList();
+        }
+
+        document.getElementById('recordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const medicines = [];
+            document.querySelectorAll('.medicine-row').forEach(row => {
+                const name = row.querySelector('.med-name-input').value.trim();
+                const inputs = row.querySelectorAll('input');
+                const usage = inputs[1] ? inputs[1].value.trim() : '';
+                if(name) medicines.push({ name, usage });
+            });
+            const newAttachedFiles = [];
+            for (const file of tempFilesPool) {
+                if (file.type.startsWith('image/')) {
+                    const compRes = await compressImage(file); newAttachedFiles.push(compRes);
+                } else {
+                    const rawRes = await fileToBase64Raw(file); newAttachedFiles.push(rawRes);
+                }
+            }
+            const finalFilesList = [...existingFilesPool, ...newAttachedFiles];
+            const recordData = {
+                member: document.querySelector('input[name="member"]:checked').value,
+                visit_date: document.getElementById('visit_date').value,
+                hospital: document.getElementById('hospital').value.trim(),
+                department: document.getElementById('department').value.trim(),
+                symptoms: document.getElementById('symptoms').value.trim(),
+                diagnosis: document.getElementById('diagnosis').value.trim(),
+                summary: document.getElementById('summary').value.trim(),
+                medicines: medicines, files: finalFilesList
+            };
+            const editingIdStr = document.getElementById('editingRecordId').value;
+            const transaction = db.transaction(["records"], "readwrite");
+            const store = transaction.objectStore("records");
+            if (editingIdStr) {
+                recordData.id = parseInt(editingIdStr); store.put(recordData);
+                transaction.oncomplete = function() { alert("🎉 档案更新成功！"); resetToCreateMode(); loadRecords(); };
+            } else {
+                store.add(recordData);
+                transaction.oncomplete = function() { alert("🎉 成功存入本地存储！"); resetToCreateMode(); loadRecords(); };
+            }
+        });
+
+        function loadRecords() {
+            const transaction = db.transaction(["records"], "readonly");
+            const store = transaction.objectStore("records");
+            const getAllReq = store.getAll();
+            getAllReq.onsuccess = function() {
+                allRecordsCache = getAllReq.result;
+                memoryKeywords = { hospital: new Set(), department: new Set(), medName: new Set() };
+                allRecordsCache.forEach(r => {
+                    if(r.hospital) memoryKeywords.hospital.add(r.hospital);
+                    if(r.department) memoryKeywords.department.add(r.department);
+                    if(r.medicines) r.medicines.forEach(m => memoryKeywords.medName.add(m.name));
+                });
+                renderTimeline();
+            };
+        }
+
+        function showSuggestions(type) {
+            const input = document.getElementById(type);
+            const box = document.getElementById(`${type}-box`);
+            const val = input.value.trim(); box.innerHTML = '';
+            if (!val) { box.classList.add('hidden'); return; }
+            const list = Array.from(memoryKeywords[type]).filter(item => item.includes(val));
+            if (list.length === 0) { box.classList.add('hidden'); return; }
+            list.forEach(k => {
+                const item = document.createElement('div'); item.className = "suggestion-item"; item.innerText = k;
+                item.onclick = function() { input.value = k; box.classList.add('hidden'); };
+                box.appendChild(item);
+            });
+            box.classList.remove('hidden');
+        }
+
+        function filterMember(member) {
+            currentFilterMember = member;
+            ['all', 'self', 'child', 'family'].forEach(t => {
+                document.getElementById(`btn-filter-${t}`).className = "px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200";
+            });
+            const mapping = { "全部": "all", "自己": "self", "小孩": "child", "其他家人": "family" };
+            document.getElementById(`btn-filter-${mapping[member]}`).className = "px-3 py-1.5 rounded-full bg-blue-600 text-white font-medium";
+            renderTimeline();
+        }
+
+        function filterRecords() { renderTimeline(); }
+
+        function renderTimeline() {
+            const timeline = document.getElementById('timeline'); timeline.innerHTML = '';
+            const keyword = document.getElementById('searchBar').value.toLowerCase().trim();
+            let filtered = allRecordsCache.filter(r => {
+                if (currentFilterMember !== "全部" && r.member !== currentFilterMember) return false;
+                if (keyword) {
+                    const matchHospital = r.hospital && r.hospital.toLowerCase().includes(keyword);
+                    const matchDept = r.department && r.department.toLowerCase().includes(keyword);
+                    const matchSymptoms = r.symptoms && r.symptoms.toLowerCase().includes(keyword);
+                    const matchDiag = r.diagnosis && r.diagnosis.toLowerCase().includes(keyword);
+                    const matchSummary = r.summary && r.summary.toLowerCase().includes(keyword);
+                    const matchMeds = r.medicines && r.medicines.some(m => m.name.toLowerCase().includes(keyword) || m.usage.toLowerCase().includes(keyword));
+                    return matchHospital || matchDept || matchSymptoms || matchDiag || matchSummary || matchMeds;
+                }
+                return true;
+            });
+            filtered.sort((a, b) => b.visit_date.localeCompare(a.visit_date));
+            if (filtered.length === 0) { timeline.innerHTML = '<p class="text-slate-400 italic pl-2">未找到符合条件的档案记录...</p>'; return; }
+            filtered.forEach(r => {
+                let medsHtml = '';
+                if (r.medicines && r.medicines.length > 0) {
+                    medsHtml = `<div class="mt-2 bg-slate-50 p-2.5 rounded-lg text-sm"><span class="font-semibold text-slate-700">💊 处方配药：</span><ul class="list-disc list-inside text-slate-600 mt-1">${r.medicines.map(m => `<li>${m.name} (${m.usage})</li>`).join('')}</ul></div>`;
+                }
+                let summaryHtml = r.summary ? `<div class="mt-3 bg-blue-50/50 border border-blue-100 p-3 rounded-lg text-sm text-slate-700"><span class="font-bold text-blue-800">📋 病情小结：</span>${r.summary}</div>` : '';
+                let filesHtml = '';
+                if (r.files && r.files.length > 0) {
+                    filesHtml = `<div class="mt-3 flex flex-wrap gap-2 items-center">`;
+                    r.files.forEach(f => {
+                        if (f.name.toLowerCase().endsWith('.pdf')) {
+                            let safeName = f.name.replace(/'/g, "\\'");
+                            filesHtml += `
+                                <button type="button" onclick="openPdfViewer('${f.data}', '${safeName}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg border border-red-200 transition">
+                                    📄 预览PDF报告: ${f.name.substring(0, 10)}...
+                                </button>`;
+                        } else {
+                            filesHtml += `<div onclick="openImageViewer('${f.data}')" class="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:opacity-80 transition shadow-sm cursor-zoom-out"><img src="${f.data}" class="w-full h-full object-cover"></div>`;
+                        }
+                    });
+                    filesHtml += `</div>`;
+                }
+                const badgeColors = { "自己": "bg-blue-100 text-blue-700", "小孩": "bg-purple-100 text-purple-700", "其他家人": "bg-amber-100 text-amber-700" };
+                const memberBadge = `<span class="text-xs px-2 py-0.5 rounded ${badgeColors[r.member] || 'bg-slate-100'}">${r.member || '自己'}</span>`;
+                let item = `
+                    <div class="relative group">
+                        <div class="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-blue-500 border-4 border-white"></div>
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
+                            <div class="flex justify-between items-start gap-4">
+                                <div>
+                                    <div class="flex items-center gap-2"><span class="text-sm font-mono font-bold text-blue-600">${r.visit_date}</span>${memberBadge}</div>
+                                    <h3 class="text-base font-bold text-slate-900 mt-0.5">${r.diagnosis}</h3>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">${r.hospital} · ${r.department}</span>
+                                    <div class="flex items-center gap-2">
+                                        <button onclick="startEditRecord(${r.id})" class="text-slate-400 hover:text-blue-600 text-sm transition" title="修改/更新记录">✏️</button>
+                                        <button onclick="deleteRecord(${r.id})" class="text-slate-300 hover:text-red-500 text-sm transition" title="删除">🗑️</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-sm text-slate-600 mt-2">✨ 身体症状：${r.symptoms}</p>
+                            ${medsHtml} ${summaryHtml} ${filesHtml}
+                        </div>
+                    </div>
+                `;
+                timeline.innerHTML += item;
+            });
+        }
+
+        function deleteRecord(id) {
+            if (confirm("⚠️ 确定要删除这条档案吗？此操作不可逆！")) {
+                const transaction = db.transaction(["records"], "readwrite");
+                const store = transaction.objectStore("records");
+                store.delete(id);
+                transaction.oncomplete = function() { loadRecords(); };
+            }
+        }
+
+        // --- 🌟 老年人友好版：安全健壮的文件下载与一键导入逻辑 🌟 ---
+
+        function exportData() {
+            const transaction = db.transaction(["records"], "readonly");
+            const store = transaction.objectStore("records");
+            const req = store.getAll();
+            req.onsuccess = function() {
+                if(!req.result || req.result.length === 0) {
+                    alert("目前档案中还没有任何记录哦，不需要导出备份。");
+                    return;
+                }
+                const blob = new Blob([JSON.stringify(req.result)], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); 
+                a.href = url;
+                
+                // 强制改名成极易辨认的纯中文大字，照顾老年人翻找
+                const d = new Date();
+                const timeStr = `${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月${String(d.getDate()).padStart(2,'0')}日`;
+                a.download = `【长辈点这个恢复】我的健康档案备份_${timeStr}.json`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                alert("🎉 保存成功！\n文件已存入您手机的【下载/Download】文件夹中。\n\n💡 提示：换手机或恢复时，点击右侧按钮。在弹出的窗口顶部搜索框里，输入“.json”就能找到这个文件啦！");
+            };
+        }
+
+        function importData(event) {
+            const file = event.target.files[0]; 
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const records = JSON.parse(e.target.result);
+                    if(!Array.isArray(records)) { throw new Error(); }
+                    
+                    const transaction = db.transaction(["records"], "readwrite");
+                    const store = transaction.objectStore("records");
+                    records.forEach(r => { delete r.id; store.add(r); });
+                    
+                    transaction.oncomplete = function() { 
+                        alert("🎉 恭喜！旧档案已成功接回，新旧数据已完美合并！"); 
+                        loadRecords(); 
+                    };
+                } catch(err) { 
+                    alert("❌ 恢复失败：您可能选错了文件，请重新点击，并尝试在顶部搜索【.json】找到我们专用的健康备份文件再点选。"); 
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // 清空选择器以便重复触发
+        }
+    </script>
+</body>
+</html>
